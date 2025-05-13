@@ -17,6 +17,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
@@ -98,7 +99,7 @@ bool GPUCodeGen::generateCUDACode(Function *F) {
   // Add CUDA-specific attributes to kernel functions
   for (Function &Func : *CUDAModule) {
     if (Func.getCallingConv() == CallingConv::PTX_Kernel ||
-        Func.getName().startswith("__cuda_kernel")) {
+        Func.getName().str().compare(0, 13, "__cuda_kernel") == 0) {
       Func.addFnAttr("cuda-device");
       Func.addFnAttr("nvvm.annotations", "{\"kernel\", i32 1}");
     }

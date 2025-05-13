@@ -41,8 +41,8 @@ enum class ComplexParallelPattern {
 /// GPUComplexPatternHandler - Handle complex GPU parallelization patterns
 class GPUComplexPatternHandler {
 public:
-  GPUComplexPatternHandler(Module &M, LoopInfo &LI)
-    : M(M), LI(LI) {}
+  GPUComplexPatternHandler(Module &M, LoopInfo &LI, ScalarEvolution &SE)
+    : M(M), LI(LI), SE(SE) {}
 
   /// Identify complex parallelization patterns in a function
   std::vector<std::pair<Loop*, ComplexParallelPattern>> identifyComplexPatterns(Function &F);
@@ -71,6 +71,7 @@ public:
 private:
   Module &M;
   LoopInfo &LI;
+  ScalarEvolution &SE;
   
   /// Check if two loops can be executed in nested parallel fashion
   bool canApplyNestedParallelism(Loop *OuterLoop, Loop *InnerLoop);

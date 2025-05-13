@@ -14,6 +14,7 @@
 #include "GPULoopTransformer.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -239,14 +240,29 @@ void GPULoopTransformer::insertThreadIndexing(Function *F, Loop *L, IRBuilder<> 
     TripCountVal = F->arg_begin(); // Assuming trip count is first arg
   }
   
-  Value *ThreadIdx = nullptr;
-  
-  switch (Runtime) {
+  Value *ThreadIdx = nullptr;  switch (Runtime) {
     case GPURuntime::CUDA: {
-      // Create calls to get thread and block indices
-      Function *GetThreadIdxX = Intrinsic::getDeclaration(&M, Intrinsic::nvvm_read_ptx_sreg_tid_x);
-      Function *GetBlockIdxX = Intrinsic::getDeclaration(&M, Intrinsic::nvvm_read_ptx_sreg_ctaid_x);
-      Function *GetBlockDimX = Intrinsic::getDeclaration(&M, Intrinsic::nvvm_read_ptx_sreg_ntid_x);
+      // Create functions for CUDA intrinsics
+      FunctionType *Int32RetTy = FunctionType::get(Type::getInt32Ty(Ctx), false);
+      
+      // Define the CUDA intrinsics for getting thread and block indices
+      Function *GetThreadIdxX = Function::Create(
+          Int32RetTy, 
+          GlobalValue::ExternalLinkage, 
+          "llvm.nvvm.read.ptx.sreg.tid.x", 
+          &M);
+          
+      Function *GetBlockIdxX = Function::Create(
+          Int32RetTy, 
+          GlobalValue::ExternalLinkage, 
+          "llvm.nvvm.read.ptx.sreg.ctaid.x", 
+          &M);
+          
+      Function *GetBlockDimX = Function::Create(
+          Int32RetTy, 
+          GlobalValue::ExternalLinkage, 
+          "llvm.nvvm.read.ptx.sreg.ntid.x", 
+          &M);
       
       Value *Tid = Builder.CreateCall(GetThreadIdxX);
       Value *Bid = Builder.CreateCall(GetBlockIdxX);
@@ -256,8 +272,7 @@ void GPULoopTransformer::insertThreadIndexing(Function *F, Loop *L, IRBuilder<> 
       Value *BlockOffset = Builder.CreateMul(Bid, Bdim);
       ThreadIdx = Builder.CreateAdd(Tid, BlockOffset, "global_tid");
       break;
-    }
-    case GPURuntime::OpenCL: {
+    }    case GPURuntime::OpenCL: {
       // For OpenCL, use get_global_id(0)
       Function *GetGlobalId = Function::Create(
         FunctionType::get(Int32Ty, Int32Ty, false),
@@ -275,21 +290,23 @@ void GPULoopTransformer::insertThreadIndexing(Function *F, Loop *L, IRBuilder<> 
       F->addFnAttr("sycl-module-id", "kernel_module");
       ThreadIdx = F->arg_begin(); // Assuming SYCL passes the ID as first arg
       break;
-    }
-    case GPURuntime::HIP: {
+    }    case GPURuntime::HIP: {
       // HIP is similar to CUDA
+      FunctionType *Int32RetTy = FunctionType::get(Type::getInt32Ty(Ctx), false);
+      
+      // Define HIP intrinsics for thread/block indices
       Function *GetThreadIdxX = Function::Create(
-        FunctionType::get(Int32Ty, false),
+        Int32RetTy,
         GlobalValue::ExternalLinkage,
         "__hip_get_thread_idx_x",
         &M);
       Function *GetBlockIdxX = Function::Create(
-        FunctionType::get(Int32Ty, false),
+        Int32RetTy,
         GlobalValue::ExternalLinkage,
         "__hip_get_block_idx_x",
         &M);
       Function *GetBlockDimX = Function::Create(
-        FunctionType::get(Int32Ty, false),
+        Int32RetTy,
         GlobalValue::ExternalLinkage,
         "__hip_get_block_dim_x",
         &M);

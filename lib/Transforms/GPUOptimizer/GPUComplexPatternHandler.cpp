@@ -185,14 +185,13 @@ bool GPUComplexPatternHandler::canApplyNestedParallelism(Loop *OuterLoop, Loop *
   // Simple checks:
   // 1. Both loops must have a single induction variable with constant step
   // 2. No loop-carried dependencies between iterations of either loop
-  
-  // Check the outer loop's induction variable
-  PHINode *OuterIV = OuterLoop->getInductionVariable();
+    // Check the outer loop's induction variable
+  PHINode *OuterIV = OuterLoop->getInductionVariable(SE);
   if (!OuterIV)
     return false;
     
   // Check the inner loop's induction variable
-  PHINode *InnerIV = InnerLoop->getInductionVariable();
+  PHINode *InnerIV = InnerLoop->getInductionVariable(SE);
   if (!InnerIV)
     return false;
   
@@ -204,8 +203,10 @@ bool GPUComplexPatternHandler::canApplyNestedParallelism(Loop *OuterLoop, Loop *
         Value *Ptr = Store->getPointerOperand();
         
         // Check if the store depends on the loop induction variables
-        if (Ptr->getMetadata("invariant.group"))
-          continue;
+        if (auto *I = dyn_cast<Instruction>(Ptr)) {
+          if (I->getMetadata("invariant.group"))
+            continue;
+        }
           
         // Simple check: don't allow stores that might create dependencies
         return false;

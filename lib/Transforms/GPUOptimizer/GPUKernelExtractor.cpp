@@ -18,6 +18,7 @@
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/CodeMetrics.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
+#include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -255,13 +256,13 @@ Function* GPUKernelExtractor::extractLoopToKernel(Loop *L) {
 
 Function* GPUKernelExtractor::extractRegionToKernel(Function &F, const std::vector<BasicBlock*> &Region) {
   LLVM_DEBUG(dbgs() << "Extracting region to GPU kernel\n");
-  
   // Simplified implementation - we'll use CodeExtractor
   DominatorTree DT(F);
-  BlockFrequencyInfo BFI(F, DT, LI);
+  BranchProbabilityInfo BPI(F, LI);
+  BlockFrequencyInfo BFI(F, BPI, LI);
   
   // Using the CodeExtractor utility
-  CodeExtractor CE(Region, &DT, false, &BFI, &LI);
+  CodeExtractor CE(Region, &DT, false, &BFI, &BPI);
   
   // Check if extraction is possible
   if (!CE.isEligible()) {
@@ -270,7 +271,8 @@ Function* GPUKernelExtractor::extractRegionToKernel(Function &F, const std::vect
   }
   
   // Perform the extraction
-  Function *ExtractedFunc = CE.extractCodeRegion();
+  CodeExtractorAnalysisCache CEAC(F);
+  Function *ExtractedFunc = CE.extractCodeRegion(CEAC);
   if (!ExtractedFunc) {
     LLVM_DEBUG(dbgs() << "  Failed to extract region\n");
     return nullptr;
@@ -336,9 +338,8 @@ void GPUKernelExtractor::analyzeDependenciesBetweenRegions(std::vector<Loop*> &S
         }
         
         // Check for RAW, WAR, WAW dependencies
-        for (auto *Store1 : Stores1) {
-          for (auto *Load2 : Loads2) {
-            auto Result = DI.depends(Store1, Load2, true);
+        for (auto *Store1 : Stores1) {          for (auto *Load2 : Loads2) {
+            auto Result = DI.depends(Store1, Load2);
             if (Result && Result->isOrdered()) {
               HasDependencies = true;
               break;
@@ -347,9 +348,8 @@ void GPUKernelExtractor::analyzeDependenciesBetweenRegions(std::vector<Loop*> &S
           
           if (HasDependencies)
             break;
-            
-          for (auto *Store2 : Stores2) {
-            auto Result = DI.depends(Store1, Store2, true);
+              for (auto *Store2 : Stores2) {
+            auto Result = DI.depends(Store1, Store2);
             if (Result && Result->isOrdered()) {
               HasDependencies = true;
               break;
@@ -360,9 +360,8 @@ void GPUKernelExtractor::analyzeDependenciesBetweenRegions(std::vector<Loop*> &S
             break;
         }
         
-        for (auto *Load1 : Loads1) {
-          for (auto *Store2 : Stores2) {
-            auto Result = DI.depends(Store2, Load1, true);
+        for (auto *Load1 : Loads1) {          for (auto *Store2 : Stores2) {
+            auto Result = DI.depends(Store2, Load1);
             if (Result && Result->isOrdered()) {
               HasDependencies = true;
               break;

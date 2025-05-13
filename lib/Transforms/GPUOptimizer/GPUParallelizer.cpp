@@ -58,11 +58,9 @@ struct GPUParallelizer : public FunctionPass {
     DependenceInfo &DI = getAnalysis<DependenceAnalysisWrapperPass>().getDI();
     ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     
-    // Create our analysis and transformation components
-    GPUPatternAnalyzer Analyzer(LI, DI, SE);
+    // Create our analysis and transformation components    GPUPatternAnalyzer Analyzer(LI, DI, SE);
     GPUKernelExtractor Extractor(*(F.getParent()), LI, DI, SE, GPURuntime::CUDA);
-    GPUComplexPatternHandler ComplexHandler(*(F.getParent()), LI);
-    
+    GPUComplexPatternHandler ComplexHandler(*(F.getParent()), LI, SE);
     // Step 1: Analyze loops for basic GPU parallelization
     bool Modified = false;
     for (Loop *L : LI) {
@@ -185,13 +183,14 @@ static RegisterPass<GPUParallelizer> X("gpu-parallelize", "GPU Parallelization P
                                        false /* Analysis Pass */);
 
 // Pass registration for the new pass manager
-extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
+extern "C" LLVM_ATTRIBUTE_WEAK
+llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {
     LLVM_PLUGIN_API_VERSION, "GPUParallelizer", LLVM_VERSION_STRING,
-    [](PassBuilder &PB) {
+    [](llvm::PassBuilder &PB) {
       PB.registerPipelineParsingCallback(
-        [](StringRef Name, FunctionPassManager &FPM,
-           ArrayRef<PassBuilder::PipelineElement>) {
+        [](llvm::StringRef Name, llvm::FunctionPassManager &FPM,
+           llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
           if (Name == "gpu-parallelize") {
             FPM.addPass(GPUParallelizer());
             return true;
