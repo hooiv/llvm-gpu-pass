@@ -37,13 +37,13 @@ enum class GPUSyncType {
 
 /// Represents a synchronization point in the code
 struct SyncPoint {
-  Instruction *Instruction;   // The instruction representing the sync point
-  GPUSyncType Type;           // Type of synchronization
-  Value *Predicate;           // Optional predicate for conditional sync
-  bool isConvergent;          // Whether this is a convergent operation
-  
-  SyncPoint(Instruction *I, GPUSyncType T, Value *P = nullptr, bool Conv = true)
-      : Instruction(I), Type(T), Predicate(P), isConvergent(Conv) {}
+  Instruction *Inst;      // The instruction representing the sync point
+  GPUSyncType Type;       // Type of synchronization
+  Value *Predicate;       // Optional predicate for conditional sync
+  bool isConvergent;      // Whether this is a convergent operation
+
+  SyncPoint(Instruction *I, GPUSyncType T, Value *P = nullptr, bool Conv = true) 
+    : Inst(I), Type(T), Predicate(P), isConvergent(Conv) {}
 };
 
 /// This class analyzes GPU kernel functions to identify synchronization requirements
@@ -55,62 +55,62 @@ public:
 
   /// Analyze the function to identify points where synchronization is needed
   void analyzeSynchronizationPoints();
-  
+
   /// Insert appropriate synchronization primitives at the identified points
   bool insertSynchronizationPrimitives();
-  
+
   /// Get all identified synchronization points
   const std::vector<SyncPoint> &getSyncPoints() const { return SyncPoints; }
-  
+
   /// Check if a given block requires synchronization
   bool blockRequiresSynchronization(BasicBlock *BB) const;
-  
+
   /// Determine if a memory operation requires synchronization
   bool memoryOperationNeedsSync(Instruction *I);
-  
+
   /// Check if a loop can use more efficient synchronization patterns
   bool canOptimizeLoopSynchronization(Loop *L);
-  
+
   /// Get the optimal grid size and synchronization strategy for a kernel
   void determineOptimalGridSyncStrategy(unsigned &BlocksX, unsigned &BlocksY, unsigned &BlocksZ);
-  
+
   /// Insert host-side synchronization for multiple kernel launches
   void insertHostSideSynchronization(Module &M);
-  
+
   /// Insert warp-level synchronization primitives
   bool insertWarpSynchronization();
-  
+
   /// Insert block-level synchronization barriers
   bool insertBlockSynchronization();
-  
+
   /// Handle CUDA Cooperative Group synchronization
   bool transformForCooperativeGroups();
-  
+
   /// Transform atomic operations for better performance
   bool optimizeAtomicOperations();
 
 private:
   Function &F;
   LoopInfo &LI;
-  GPUPatternAnalizer &GPA;
+  GPUPatternAnalyzer &GPA;
   std::vector<SyncPoint> SyncPoints;
   std::set<BasicBlock*> BlocksRequiringSync;
-  
+
   /// Analyze data dependencies to determine sync requirements
   void analyzeDataDependencies();
-  
+
   /// Identify places where memory fence operations are needed
   void identifyMemoryFencePoints();
-  
+
   /// Analyze atomic operations for optimization
   void analyzeAtomicOperations();
-  
+
   /// Create a new sync point and add it to the list
   void addSyncPoint(Instruction *I, GPUSyncType Type, Value *Predicate = nullptr);
-  
+
   /// Transform kernel for grid-wide synchronization (cooperative groups)
   bool enableGridWideSynchronization();
-  
+
   /// Find optimal insertion points for synchronization primitives
   Instruction *findOptimalSyncInsertionPoint(BasicBlock *BB);
 };

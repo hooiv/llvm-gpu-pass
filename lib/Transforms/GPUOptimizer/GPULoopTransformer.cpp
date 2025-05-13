@@ -444,7 +444,7 @@ bool GPULoopTransformer::insertKernelLaunchCode(Loop *L, Function *KernelFunc) {
       // Create external declarations for CUDA runtime functions
       FunctionType *LaunchKernelTy = FunctionType::get(
           Type::getVoidTy(Ctx),
-          {Type::getInt8PtrTy(Ctx), Int32Ty, Int32Ty, Type::getInt8PtrTy(Ctx)},
+          {Type::getInt8Ty(Ctx)->getPointerTo(), Int32Ty, Int32Ty, Type::getInt8Ty(Ctx)->getPointerTo()},
           true); // varargs for kernel args
       
       // Create or get the cudaLaunchKernel function
@@ -455,24 +455,24 @@ bool GPULoopTransformer::insertKernelLaunchCode(Loop *L, Function *KernelFunc) {
           &M);
       
       // Get function pointer to kernel
-      Value *KernelPtr = Builder.CreateBitCast(KernelFunc, Type::getInt8PtrTy(Ctx));
+      Value *KernelPtr = Builder.CreateBitCast(KernelFunc, Type::getInt8Ty(Ctx)->getPointerTo());
       
       // Call cudaLaunchKernel with the kernel arguments
       std::vector<Value*> LaunchArgs = {KernelPtr, GridSize, BlockSize};
       
       // Create an array for kernel arguments
-      ArrayType *ArgsArrayTy = ArrayType::get(Type::getInt8PtrTy(Ctx), Args.size());
+      ArrayType *ArgsArrayTy = ArrayType::get(Type::getInt8Ty(Ctx)->getPointerTo(), Args.size());
       AllocaInst *ArgsArray = Builder.CreateAlloca(ArgsArrayTy);
       
       // Store each argument in the array
       for (unsigned i = 0; i < Args.size(); i++) {
-        Value *ArgPtr = Builder.CreateBitCast(Args[i], Type::getInt8PtrTy(Ctx));
+        Value *ArgPtr = Builder.CreateBitCast(Args[i], Type::getInt8Ty(Ctx)->getPointerTo());
         Value *ArrayIdx = Builder.CreateConstGEP2_32(ArgsArrayTy, ArgsArray, 0, i);
         Builder.CreateStore(ArgPtr, ArrayIdx);
       }
       
       // Pass the array to cudaLaunchKernel
-      LaunchArgs.push_back(Builder.CreateBitCast(ArgsArray, Type::getInt8PtrTy(Ctx)));
+      LaunchArgs.push_back(Builder.CreateBitCast(ArgsArray, Type::getInt8Ty(Ctx)->getPointerTo()));
       
       Builder.CreateCall(CudaLaunchKernel, LaunchArgs);
       
@@ -482,7 +482,7 @@ bool GPULoopTransformer::insertKernelLaunchCode(Loop *L, Function *KernelFunc) {
       // For OpenCL, we'd use the OpenCL runtime API
       // This is simplified - a real implementation would be more complex
       Type *Int32Ty = Type::getInt32Ty(Ctx);
-      Type *VoidPtrTy = Type::getInt8PtrTy(Ctx);
+      Type *VoidPtrTy = Type::getInt8Ty(Ctx)->getPointerTo();
       
       // Create or get OpenCL runtime functions
       FunctionType *SetKernelArgTy = FunctionType::get(
@@ -537,7 +537,7 @@ bool GPULoopTransformer::insertKernelLaunchCode(Loop *L, Function *KernelFunc) {
       Builder.CreateStore(TotalSize, GlobalWorkSize);
       
       // Launch the kernel
-      Value *NullPtr = ConstantPointerNull::get(VoidPtrTy);
+      Value *NullPtr = ConstantPointerNull::get(cast<PointerType>(VoidPtrTy));
       Value *ZeroEvents = ConstantInt::get(Int32Ty, 0);
       Builder.CreateCall(EnqueueNDRangeKernel, 
                         {QueueObj, KernelObj, WorkDim, NullPtr, 

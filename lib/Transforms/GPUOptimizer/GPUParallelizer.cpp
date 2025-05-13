@@ -58,9 +58,11 @@ struct GPUParallelizer : public FunctionPass {
     DependenceInfo &DI = getAnalysis<DependenceAnalysisWrapperPass>().getDI();
     ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     
-    // Create our analysis and transformation components    GPUPatternAnalyzer Analyzer(LI, DI, SE);
+    // Create our analysis and transformation components
+    GPUPatternAnalyzer Analyzer(LI, DI, SE);
     GPUKernelExtractor Extractor(*(F.getParent()), LI, DI, SE, GPURuntime::CUDA);
     GPUComplexPatternHandler ComplexHandler(*(F.getParent()), LI, SE);
+
     // Step 1: Analyze loops for basic GPU parallelization
     bool Modified = false;
     for (Loop *L : LI) {
