@@ -103,10 +103,10 @@ void GPUSynchronizationHandler::analyzeDataDependencies() {
           // Check for cooperative groups
           if (Name.contains("cooperative_groups") || Name.contains("grid_sync")) {
             addSyncPoint(&I, GPUSyncType::COOPERATIVE_GROUP);
-          }        }
-      }
+          }        }      }
 
-      // Look for volatile memory operations which often indicate synchronization      if (auto *Load = dyn_cast<LoadInst>(&I)) {
+      // Look for volatile memory operations which often indicate synchronization
+      if (auto *Load = dyn_cast<LoadInst>(&I)) {
         if (Load->isVolatile()) {
           HasDataSharing = true;
         }
@@ -222,10 +222,10 @@ void GPUSynchronizationHandler::identifyMemoryFencePoints() {
       }
       // Check for volatile operations which might need fencing
       else if (auto *Load = dyn_cast<LoadInst>(&I)) {        if (Load->isVolatile() &&
-            !Load->getMetadata("llvm.mem.parallel_loop_access")) {
-          NeedsFence = true;
+            !Load->getMetadata("llvm.mem.parallel_loop_access")) {          NeedsFence = true;
           FencePoint = &I;
-        }      }
+        }
+      }
       else if (auto *Store = dyn_cast<StoreInst>(&I)) {
         if (Store->isVolatile() &&
             !Store->getMetadata("llvm.mem.parallel_loop_access")) {
@@ -380,10 +380,10 @@ bool GPUSynchronizationHandler::insertBlockSynchronization() {
   // For now, default to CUDA-style (real implementation would detect the programming model)
   SyncThreads = M->getOrInsertFunction(
     "__syncthreads",
-    FunctionType::get(Type::getVoidTy(Ctx), {}, false)
-  );
+    FunctionType::get(Type::getVoidTy(Ctx), {}, false)  );
 
-  // Process barrier synchronization points  for (const SyncPoint &SP : SyncPoints) {
+  // Process barrier synchronization points
+  for (const SyncPoint &SP : SyncPoints) {
     if (SP.Type == GPUSyncType::BARRIER) {
       Instruction *I = SP.Inst;
 
@@ -440,7 +440,8 @@ bool GPUSynchronizationHandler::insertWarpSynchronization() {
     FunctionType::get(Type::getVoidTy(Ctx), {Type::getInt32Ty(Ctx)}, false)
   );
 
-  // Process warp synchronization points  for (const SyncPoint &SP : SyncPoints) {
+  // Process warp synchronization points
+  for (const SyncPoint &SP : SyncPoints) {
     if (SP.Type == GPUSyncType::WARP_SYNC) {
       Instruction *I = SP.Inst;
 
