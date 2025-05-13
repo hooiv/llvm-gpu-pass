@@ -1,25 +1,61 @@
 # LLVM GPU-Specific Optimization Pass
 
-This project implements a custom LLVM optimization pass that targets GPU architectures by identifying and transforming parallelizable code patterns.
+This project implements a custom LLVM optimization pass that targets GPU architectures by identifying and transforming parallelizable code patterns, with extensive optimizations for better GPU performance.
 
 ## Project Structure
 
-- `lib/Transforms/GPUOptimizer/`: Contains the implementation of the GPU parallelization pass
-- `test_sample.c`: Sample C code with different patterns to test the optimization pass
+- `lib/Transforms/GPUOptimizer/`: Contains the implementation of the GPU optimization pass
+- `test_samples/`: Sample C code with different patterns to test the optimization pass
 
 ## Features
 
-The GPU Parallelizer Pass does the following:
+The GPU Optimizer Pass implements the following key features:
 
-1. Identifies loops that are potential candidates for GPU execution
-2. Analyzes loop-carried dependencies
-3. Examines memory access patterns for GPU compatibility
-4. Evaluates compute-to-memory ratio
-5. Determines if loops have sufficient iterations to benefit from GPU execution
-6. Transforms suitable loops into GPU kernels
-7. Supports complex parallelization patterns (nested parallelism, wavefront, etc.)
-8. Generates CUDA/OpenCL/SYCL/HIP code
-9. Automatically extracts kernels from compute-intensive regions
+### 1. Improved Cost Model for GPU Offloading Decisions
+- Architecture-specific cost models for major GPU vendors (NVIDIA, AMD, Intel)
+- Comprehensive analysis of computational intensity, parallelism, memory access patterns
+- Data transfer overhead estimation
+- Trip count and loop structure analysis
+
+### 2. Support for Diverse GPU Architectures
+- Optimizations tailored for:
+  - NVIDIA: Ampere, Turing, Volta, Pascal, Maxwell
+  - AMD: RDNA2, RDNA, CDNA2, CDNA, Vega
+  - Intel: Xe HPC, Xe HPG, Xe LP
+- Architecture detection via environment variables and platform queries
+- Architecture-specific parameters for cost models
+
+### 3. Automatic Shared Memory Optimization
+- Detection of code patterns that can benefit from shared memory
+- Analysis of array access patterns for tiling opportunities
+- Support for stencil patterns and reduction operations
+- Memory requirement estimation to ensure shared memory constraints are met
+
+### 4. Advanced Synchronization Primitives
+- Block-level synchronization (`__syncthreads()` in CUDA, `barrier()` in OpenCL)
+- Warp-level synchronization (`__syncwarp()` in CUDA)
+- Memory fences for different memory scopes
+- Atomic operations for concurrent updates
+- Cooperative groups for more flexible synchronization
+
+### 5. Cooperative Groups Support (for CUDA)
+- Support for grid-wide synchronization
+- Thread block clusters for multi-block cooperation
+- Subgroup synchronization with various sizes
+- Dynamic group formation
+
+### 6. Integration with Other LLVM Optimization Passes
+- Coordination with loop optimization passes
+- Integration with scalar optimization passes
+- Interaction with vectorization passes
+- Support for both new and legacy pass managers
+
+### 7. Support for Heterogeneous Execution (CPU+GPU)
+- Region identification for offloading
+- Cost analysis for CPU vs. GPU execution
+- Support for runtime dispatch decisions
+- Data transfer optimization between CPU and GPU
+- Verification of correctness across devices
 
 ## Building the Project
 

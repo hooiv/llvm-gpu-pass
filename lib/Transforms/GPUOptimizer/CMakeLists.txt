@@ -5,6 +5,10 @@ add_llvm_library(LLVMGPUOptimizer MODULE
   GPUKernelExtractor.cpp
   GPUCodeGen.cpp
   GPUComplexPatternHandler.cpp
+  GPUSyncPrimitives.cpp
+  GPUPassIntegration.cpp
+  GPUHeterogeneousSupport.cpp
+  GPUOptimizerPass.cpp
 
   DEPENDS
   intrinsics_gen

@@ -20,7 +20,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <fstream>
 #include <sstream>
@@ -80,7 +81,7 @@ bool GPUCodeGen::writeToFile(StringRef Filename) {
   }
   
   std::error_code EC;
-  raw_fd_ostream OS(Filename, EC, sys::fs::OF_None);
+  raw_fd_ostream OS(Filename, EC, sys::fs::OF_Text);
   if (EC) {
     LLVM_DEBUG(dbgs() << "Failed to open file: " << EC.message() << "\n");
     return false;

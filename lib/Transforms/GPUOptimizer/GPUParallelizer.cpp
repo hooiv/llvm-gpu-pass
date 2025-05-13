@@ -26,7 +26,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include <vector>
 
 #define DEBUG_TYPE "gpu-parallelizer"
@@ -183,9 +184,20 @@ static RegisterPass<GPUParallelizer> X("gpu-parallelize", "GPU Parallelization P
                                        false /* Only looks at CFG */,
                                        false /* Analysis Pass */);
 
-// Pass registration for opt tool
-static RegisterStandardPasses RegisterGPUParallelizerPass(
-    PassManagerBuilder::EP_EarlyAsPossible,
-    [](const PassManagerBuilder &Builder, legacy::PassManagerBase &PM) {
-      PM.add(new GPUParallelizer());
-    });
+// Pass registration for the new pass manager
+extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
+  return {
+    LLVM_PLUGIN_API_VERSION, "GPUParallelizer", LLVM_VERSION_STRING,
+    [](PassBuilder &PB) {
+      PB.registerPipelineParsingCallback(
+        [](StringRef Name, FunctionPassManager &FPM,
+           ArrayRef<PassBuilder::PipelineElement>) {
+          if (Name == "gpu-parallelize") {
+            FPM.addPass(GPUParallelizer());
+            return true;
+          }
+          return false;
+        });
+    }
+  };
+}
