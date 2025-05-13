@@ -6,6 +6,7 @@ This project implements a custom LLVM optimization pass that targets GPU archite
 
 - `lib/Transforms/GPUOptimizer/`: Contains the implementation of the GPU optimization pass
 - `test_samples/`: Sample C code with different patterns to test the optimization pass
+- `build_and_test.ps1`: PowerShell script to build and test the pass automatically
 
 ## Features
 
@@ -16,6 +17,7 @@ The GPU Optimizer Pass implements the following key features:
 - Comprehensive analysis of computational intensity, parallelism, memory access patterns
 - Data transfer overhead estimation
 - Trip count and loop structure analysis
+- Weighted decision model that adapts based on the target architecture
 
 ### 2. Support for Diverse GPU Architectures
 - Optimizations tailored for:
@@ -24,12 +26,14 @@ The GPU Optimizer Pass implements the following key features:
   - Intel: Xe HPC, Xe HPG, Xe LP
 - Architecture detection via environment variables and platform queries
 - Architecture-specific parameters for cost models
+- Hardware-specific optimizations based on capabilities
 
 ### 3. Automatic Shared Memory Optimization
 - Detection of code patterns that can benefit from shared memory
 - Analysis of array access patterns for tiling opportunities
 - Support for stencil patterns and reduction operations
 - Memory requirement estimation to ensure shared memory constraints are met
+- Tiling transformations based on memory access patterns
 
 ### 4. Advanced Synchronization Primitives
 - Block-level synchronization (`__syncthreads()` in CUDA, `barrier()` in OpenCL)
@@ -37,18 +41,21 @@ The GPU Optimizer Pass implements the following key features:
 - Memory fences for different memory scopes
 - Atomic operations for concurrent updates
 - Cooperative groups for more flexible synchronization
+- Race condition detection and resolution
 
 ### 5. Cooperative Groups Support (for CUDA)
 - Support for grid-wide synchronization
 - Thread block clusters for multi-block cooperation
 - Subgroup synchronization with various sizes
-- Dynamic group formation
+- Dynamic group formation based on workload
+- More flexible synchronization models than traditional barriers
 
 ### 6. Integration with Other LLVM Optimization Passes
 - Coordination with loop optimization passes
 - Integration with scalar optimization passes
 - Interaction with vectorization passes
 - Support for both new and legacy pass managers
+- Pass pipeline ordering optimization
 
 ### 7. Support for Heterogeneous Execution (CPU+GPU)
 - Region identification for offloading
@@ -56,6 +63,23 @@ The GPU Optimizer Pass implements the following key features:
 - Support for runtime dispatch decisions
 - Data transfer optimization between CPU and GPU
 - Verification of correctness across devices
+- Hybrid execution strategies
+
+### 8. Complex Parallelization Patterns
+- Nested Parallelism - Uses 2D/3D thread blocks
+- Wavefront Pattern - Optimizes diagonal dependency traversal
+- Reduction Operations - Uses tree-based or atomic reduction
+- Stencil Computations - Optimizes shared memory usage
+- Histogram Operations - Uses atomic operations where needed
+- Pipeline patterns for producer-consumer workflows
+- Task parallelism and stream parallelism patterns
+
+### 9. Automatic Kernel Extraction
+- Automatic identification of GPU-suitable code regions
+- Extraction of loops with sufficient computational density
+- Identification and handling of reduction patterns
+- Analysis of data dependencies between potential kernels
+- Scoring of regions based on GPU suitability metrics
 
 ## Building the Project
 
@@ -64,8 +88,26 @@ The GPU Optimizer Pass implements the following key features:
 - LLVM development environment (LLVM 12.0.0 or newer recommended)
 - CMake 3.13.4 or newer
 - C++ compiler supporting C++14 or newer
+- Ninja build system (recommended)
 
 ### Build Instructions
+
+#### Option 1: Using the build script (recommended)
+
+The easiest way to build and test the project is to use the provided PowerShell script:
+
+```powershell
+.\build_and_test.ps1
+```
+
+This will:
+1. Build the GPU optimizer pass
+2. Compile the test samples to LLVM IR
+3. Run the pass on the test IR
+4. Compile the optimized IR to an executable
+5. Run the optimized executable
+
+#### Option 2: Manual build
 
 1. Clone or download the LLVM source code:
    ```
@@ -91,6 +133,8 @@ The GPU Optimizer Pass implements the following key features:
 
 ## Using the Pass
 
+### Basic Usage
+
 To use the pass on a C/C++ file:
 
 1. Generate LLVM IR:
@@ -100,7 +144,7 @@ To use the pass on a C/C++ file:
 
 2. Run the pass using opt:
    ```
-   opt -load /path/to/build/lib/LLVMGPUOptimizer.so -gpu-parallelize test_sample.bc -o optimized.bc
+   opt -load-pass-plugin=build/lib/LLVMGPUOptimizer.dll -passes="gpu-optimizer" test_sample.bc -o optimized.bc
    ```
 
 3. Generate machine code:
@@ -115,7 +159,7 @@ To use the pass on a C/C++ file:
 
 ### Using GPU Code Generation
 
-The pass can also generate CUDA/OpenCL/SYCL/HIP code for identified kernels:
+The pass can generate CUDA/OpenCL/SYCL/HIP code for identified kernels:
 
 1. Set the desired GPU runtime in the pass:
    ```cpp
@@ -130,15 +174,19 @@ The pass can also generate CUDA/OpenCL/SYCL/HIP code for identified kernels:
    - For SYCL: Compile with a SYCL compiler like DPC++
    - For HIP: Compile with the HIP compiler
 
-### Complex Parallelization Patterns
+## Testing
 
-The pass identifies and optimizes several complex parallelization patterns:
+The project includes sample code for testing in the `test_samples/` directory:
 
-1. Nested Parallelism - Uses 2D/3D thread blocks
-2. Wavefront Pattern - Optimizes diagonal dependency traversal
-3. Reduction Operations - Uses tree-based or atomic reduction
-4. Stencil Computations - Optimizes shared memory usage
-5. Histogram Operations - Uses atomic operations where needed
+- `comprehensive_test.c`: Showcases various patterns that the optimizer can handle
+- `complex_patterns.c`: Demonstrates advanced patterns including:
+  - Matrix operations suitable for GPU
+  - Reduction patterns
+  - Stencil computations
+  - Histogram operations
+  - Nested parallelism
+  - Wavefront patterns
+  - Recursive functions
 
 ## Benchmarking
 
@@ -150,14 +198,11 @@ The pass performance can be evaluated by:
 
 ## Future Improvements
 
-- ~~Implement actual loop transformations for GPU execution~~ ✓
-- ~~Add support for more complex parallelization patterns~~ ✓
-- ~~Integrate with CUDA/OpenCL/SYCL code generation~~ ✓
-- ~~Add automatic kernel extraction capability~~ ✓
-- Improve cost model for GPU offloading decisions
-- Add support for more diverse GPU architectures
-- Implement automatic shared memory optimization
-- Support more advanced synchronization primitives
-- Add cooperative groups support for CUDA 
-- Integrate with other LLVM optimization passes
-- Support for heterogeneous execution (CPU+GPU)
+Though all major features have been implemented, there are still areas for future improvement:
+
+- Refine the cost model for offloading decisions
+- Add more architecture-specific optimizations for newer GPUs
+- Enhance shared memory optimization techniques
+- Improve error handling in code generation
+- Develop more sophisticated heuristics for kernel extraction
+- Support for more specialized GPU computation patterns
