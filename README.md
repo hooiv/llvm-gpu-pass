@@ -16,6 +16,10 @@ The GPU Parallelizer Pass does the following:
 3. Examines memory access patterns for GPU compatibility
 4. Evaluates compute-to-memory ratio
 5. Determines if loops have sufficient iterations to benefit from GPU execution
+6. Transforms suitable loops into GPU kernels
+7. Supports complex parallelization patterns (nested parallelism, wavefront, etc.)
+8. Generates CUDA/OpenCL/SYCL/HIP code
+9. Automatically extracts kernels from compute-intensive regions
 
 ## Building the Project
 
@@ -73,6 +77,33 @@ To use the pass on a C/C++ file:
    clang optimized.s -o optimized
    ```
 
+### Using GPU Code Generation
+
+The pass can also generate CUDA/OpenCL/SYCL/HIP code for identified kernels:
+
+1. Set the desired GPU runtime in the pass:
+   ```cpp
+   GPURuntime Runtime = GPURuntime::CUDA; // Or OpenCL, SYCL, HIP
+   ```
+
+2. After running the pass, kernel source files will be generated (e.g., `kernel_name.cu` for CUDA).
+
+3. Compile the generated kernels with the appropriate toolchain:
+   - For CUDA: `nvcc kernel_name.cu -o kernel_name.o`
+   - For OpenCL: Include with your OpenCL host code
+   - For SYCL: Compile with a SYCL compiler like DPC++
+   - For HIP: Compile with the HIP compiler
+
+### Complex Parallelization Patterns
+
+The pass identifies and optimizes several complex parallelization patterns:
+
+1. Nested Parallelism - Uses 2D/3D thread blocks
+2. Wavefront Pattern - Optimizes diagonal dependency traversal
+3. Reduction Operations - Uses tree-based or atomic reduction
+4. Stencil Computations - Optimizes shared memory usage
+5. Histogram Operations - Uses atomic operations where needed
+
 ## Benchmarking
 
 The pass performance can be evaluated by:
@@ -83,7 +114,14 @@ The pass performance can be evaluated by:
 
 ## Future Improvements
 
-- Implement actual loop transformations for GPU execution
-- Add support for more complex parallelization patterns
-- Integrate with CUDA/OpenCL/SYCL code generation
-- Add automatic kernel extraction capability
+- ~~Implement actual loop transformations for GPU execution~~ ✓
+- ~~Add support for more complex parallelization patterns~~ ✓
+- ~~Integrate with CUDA/OpenCL/SYCL code generation~~ ✓
+- ~~Add automatic kernel extraction capability~~ ✓
+- Improve cost model for GPU offloading decisions
+- Add support for more diverse GPU architectures
+- Implement automatic shared memory optimization
+- Support more advanced synchronization primitives
+- Add cooperative groups support for CUDA 
+- Integrate with other LLVM optimization passes
+- Support for heterogeneous execution (CPU+GPU)

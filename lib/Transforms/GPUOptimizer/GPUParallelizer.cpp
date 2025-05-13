@@ -11,9 +11,13 @@
 //
 //===----------------------------------------------------------------===//
 
-#include "GPUPatternAnalyzer.h" // Include the new analyzer
-#include "llvm/Analysis/DependenceAnalysis.h" // Required by GPUPatternAnalyzer
-#include "llvm/Analysis/ScalarEvolution.h" // Required by GPUPatternAnalyzer
+#include "GPUPatternAnalyzer.h"
+#include "GPULoopTransformer.h"
+#include "GPUKernelExtractor.h"
+#include "GPUCodeGen.h"
+#include "GPUComplexPatternHandler.h"
+#include "llvm/Analysis/DependenceAnalysis.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -43,7 +47,6 @@ struct GPUParallelizer : public FunctionPass {
     AU.addRequired<ScalarEvolutionWrapperPass>(); // Add ScalarEvolution
     AU.setPreservesCFG();
   }
-
   // runOnFunction - Implement the actual pass functionality
   bool runOnFunction(Function &F) override {
     LLVM_DEBUG(dbgs() << "GPUParallelizer: Processing function: " << F.getName() << "\n");
@@ -54,39 +57,121 @@ struct GPUParallelizer : public FunctionPass {
     DependenceInfo &DI = getAnalysis<DependenceAnalysisWrapperPass>().getDI();
     ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     
-    // Create our pattern analyzer
+    // Create our analysis and transformation components
     GPUPatternAnalyzer Analyzer(LI, DI, SE);
+    GPUKernelExtractor Extractor(*(F.getParent()), LI, DI, SE, GPURuntime::CUDA);
+    GPUComplexPatternHandler ComplexHandler(*(F.getParent()), LI);
     
-    // Analyze loops for parallelization opportunities
+    // Step 1: Analyze loops for basic GPU parallelization
     bool Modified = false;
     for (Loop *L : LI) {
       Modified |= analyzeLoopForParallelization(L, Analyzer);
     }
     
+    // Step 2: Automatically extract kernels from suitable regions
+    if (Extractor.extractKernels(F)) {
+      Modified = true;
+      errs() << "Successfully extracted " << Extractor.getExtractedKernels().size() 
+             << " GPU kernels from function " << F.getName() << "\n";
+             
+      // Generate code for each extracted kernel
+      for (Function *KernelFunc : Extractor.getExtractedKernels()) {
+        GPUCodeGen CodeGenerator(*(F.getParent()), GPURuntime::CUDA);
+        if (CodeGenerator.generateGPUCode(KernelFunc)) {
+          errs() << "Generated GPU code for kernel " << KernelFunc->getName() << "\n";
+          
+          // Write generated code to file (optional)
+          std::string OutFileName = KernelFunc->getName().str() + ".cu";
+          if (CodeGenerator.writeToFile(OutFileName)) {
+            errs() << "Wrote generated code to " << OutFileName << "\n";
+          }
+        }
+      }
+    }
+    
+    // Step 3: Handle complex parallelization patterns
+    auto ComplexPatterns = ComplexHandler.identifyComplexPatterns(F);
+    for (auto &Pattern : ComplexPatterns) {
+      Loop *L = Pattern.first;
+      ComplexParallelPattern PatternType = Pattern.second;
+      
+      switch (PatternType) {
+        case ComplexParallelPattern::NestedParallelism:
+          if (L && !L->getSubLoops().empty()) {
+            if (ComplexHandler.transformNestedParallelism(L, L->getSubLoops()[0])) {
+              Modified = true;
+              errs() << "Applied nested parallelism transformation\n";
+            }
+          }
+          break;
+          
+        case ComplexParallelPattern::Wavefront:
+          if (L && !L->getSubLoops().empty()) {
+            if (ComplexHandler.transformWavefrontPattern(L, L->getSubLoops()[0])) {
+              Modified = true;
+              errs() << "Applied wavefront pattern transformation\n";
+            }
+          }
+          break;
+          
+        case ComplexParallelPattern::Recursive:
+          if (ComplexHandler.handleRecursivePattern(F)) {
+            Modified = true;
+            errs() << "Applied recursive pattern transformation\n";
+          }
+          break;
+          
+        default:
+          // Other patterns
+          break;
+      }
+    }
+    
     return Modified;
   }
-
   // Analyze a loop for parallelization potential
   bool analyzeLoopForParallelization(Loop *L, GPUPatternAnalyzer &Analyzer) {
     errs() << "  Analyzing loop for parallelization\n";
     
     // Use the GPUPatternAnalyzer to check if the loop is suitable
     if (Analyzer.isLoopSuitableForGPU(L)) {
-      errs() << "  Loop is suitable for GPU, would transform for GPU\n";
-      // Placeholder: Actual transformation logic would go here.
-      // For example, outlining the loop body into a new function,
-      // generating GPU kernel launch code, etc.
-      // For now, we just identify candidates without transformation.
+      errs() << "  Loop is suitable for GPU, transforming for GPU\n";
+      
+      // Create a loop transformer for the actual transformation
+      GPULoopTransformer Transformer(*(L->getHeader()->getParent()->getParent()), 
+                                   getAnalysis<LoopInfoWrapperPass>().getLoopInfo(),
+                                   getAnalysis<ScalarEvolutionWrapperPass>().getSE(),
+                                   GPURuntime::CUDA);
+      
+      // Determine parallelization pattern
+      ParallelizationPattern Pattern = ParallelizationPattern::MapPattern;
+      
+      // Check for reduction patterns
+      if (Analyzer.identifyReductionPatterns(L)) {
+        Pattern = ParallelizationPattern::ReducePattern;
+        errs() << "  Detected reduction pattern\n";
+      }
+      
+      // Transform the loop into a GPU kernel
+      Function *KernelFunc = Transformer.transformLoopToGPUKernel(L, Pattern);
+      if (KernelFunc) {
+        errs() << "  Successfully transformed loop to GPU kernel: " << KernelFunc->getName() << "\n";
+        return true;
+      } else {
+        errs() << "  Failed to transform loop to GPU kernel\n";
+      }
     } else {
       errs() << "  Loop is NOT suitable for GPU based on analysis.\n";
     }
     
     // Recursively analyze nested loops
     for (Loop *SubL : L->getSubLoops()) {
-      analyzeLoopForParallelization(SubL, Analyzer);
+      if (analyzeLoopForParallelization(SubL, Analyzer)) {
+        return true;
+      }
     }
     
-    return false; // No actual modifications yet, so return false
+    return false;
   }
 };
 
